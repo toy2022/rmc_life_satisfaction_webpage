@@ -1,9 +1,9 @@
 ---
 title: "Self-reported life satisfaction, 2011 to 2023"
 subtitle: "Replicating the Our World in Data Grapher"
-author: "YOUR NAME HERE" # Remember to add your name!
-date: "24-07-2024"
-theme: united
+author: "Trokon Omarley Yeabah" # Remember to add your name!
+date: "now"
+theme: simplex
 ---
 
 <!-- Custom HTML to add logo [DO NOT EDIT THIS SECTION] -->
@@ -27,14 +27,16 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 
 # Load packages 
 if(!require(pacman)) install.packages("pacman")
-pacman::p_load(plotly, tidyverse, reactable, here, scales)
+pacman::p_load(plotly, tidyverse, reactable, here, scales, janitor)
 ```
 
 ```{r}
 ## Import data
 cantril <- 
-  read_csv(here("data/happiness-cantril-ladder.csv")) %>% 
-  rename(Country = Entity)
+  read_csv(here("data/happiness-cantril-ladder.csv")) %>%
+  clean_names() %>% 
+  rename(country       = entity,
+         cantril_score = cantril_ladder_score)
 ```
 
 ### Happiness across the world over time
@@ -45,6 +47,7 @@ The main life evaluation question asked in the poll is the Cantril Life Ladder q
 
 > “Please imagine a ladder, with steps numbered from 0 at the bottom to 10 at the top. The top of the ladder represents the best possible life for you and the bottom of the ladder represents the worst possible life for you. On which step of the ladder would you say you personally feel you stand at this time?”
 
+:::{.panel-tabset}
 
 ## 🔢 Table
 
@@ -56,8 +59,20 @@ The main life evaluation question asked in the poll is the Cantril Life Ladder q
 
 
 # Create table
+table <- cantril %>%    
+  filter(year %in% c(2011, 2023)) %>%
+  pivot_wider(names_from  = year,               
+              values_from = cantril_score) %>%    
+  select(-code) %>%    
+  mutate(abs_change = round(`2023` - `2011`,2),          
+         rel_change = scales::percent(round(abs_change/`2011`,2)),          
+         `2011` = round(`2011`,2),          
+         `2023` = round(`2023`,2)) %>% 
+  rename("Absolute change" = abs_change,
+         "Relative change" = rel_change)
 
-"WRITE_YOUR_CODE_HERE"
+reactable(table)
+
 ```
 
 
@@ -81,19 +96,19 @@ g <- list(
 
 # Create choropleth map
 cantril %>%
-  mutate(`Cantril ladder score` = round(`Cantril ladder score`, 2)) %>%
+  mutate(cantril_score = round(cantril_score, 2)) %>%
   plot_geo(width = 940) %>%
   add_trace(
-    z = ~`Cantril ladder score`,
-    color = ~`Cantril ladder score`,
-    zmin = 0, # Set minimum value for color scale
-    zmax = 10, # Set maximum value for color scale
-    locations = ~Code,
-    text = ~Country,
-    frame = ~Year, colors = "YlGn",
-    marker = list(line = l)
+    z     = ~cantril_score,
+    color = ~cantril_score,
+    zmin  = 0, # Set minimum value for color scale
+    zmax  = 10, # Set maximum value for color scale
+    locations = ~code,
+    text      = ~country,
+    frame     = ~year, colors = "YlGn",
+    marker    = list(line = l)
   ) %>%
-  colorbar(title = "Ladder Score",
+  colorbar(title    = "Ladder Score",
            tickvals = seq(0, 10, by = 2),
            ticktext = seq(0, 10, by = 2)) %>%
   layout(geo = g)
@@ -107,7 +122,24 @@ cantril %>%
 # Note that your chart will not have the ability to filter countries like the one on the Our World in Data page.
 
 # Create line chart
-"WRITE_YOUR_CODE_HERE"
+selected_countries <- cantril %>%    
+  distinct(country, .keep_all = TRUE) %>%   
+  sample_n(8)  
+
+plot <- cantril %>%    
+  filter(country %in% selected_countries$country) %>%    
+  ggplot(mapping = aes(y     = cantril_score,                        
+                       x     = year,                        
+                       color = country)) +   
+  geom_line() +   
+  scale_y_continuous(limits = c(0,10)) +   
+  labs(
+    title = "Cantril score over time",        
+    x     = "Year",        
+    y     = "Cantril score") +   
+  theme_minimal()
+
+ggplotly(plot)
 ```
 
 ## 📈 Advanced Chart
@@ -128,20 +160,20 @@ shared_cantril_data <- highlight_key(cantril)
 
 cantril_plotly <- plot_ly(
   shared_cantril_data, 
-  x = ~Year, 
-  y = ~`Cantril ladder score`, 
-  color = ~Country, 
-  type = "scatter", 
-  mode = "lines+markers"
-) %>%
-  layout(yaxis = list(range = c(0, 10)))
+  x     = ~year, 
+  y     = ~cantril_score, 
+  color = ~country, 
+  type  = "scatter", 
+  mode  = "lines+markers") %>%
+  layout(
+    yaxis = list(range = c(0, 10)))
 
 
 country_filter <- filter_select(
   "country_filter", 
   "Select a country to examine", 
   shared_cantril_data, 
-  ~Country, 
+  ~country, 
   multiple = TRUE
 )
 
@@ -150,7 +182,7 @@ bscols(
   list(country_filter, cantril_plotly)
 )
 ```
-
+:::
 <!-- Custom javascript to set default values in the filter: -->
 <script>
 function filter_default() {
